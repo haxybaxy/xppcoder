@@ -1,4 +1,4 @@
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 import os
 from pinecone import Pinecone
 import openai
@@ -17,14 +17,14 @@ model = OpenAIEmbeddings(model="text-embedding-ada-002")
 pc = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
 index = pc.Index("xppcoder")
 
-from langchain.vectorstores import Pinecone
+from langchain_pinecone import PineconeVectorStore
 
-vectorstore = Pinecone(
-    index, model.embed_query, "text"
+vectorstore = PineconeVectorStore(
+    index, model, "text"
 )
 
 def find_match(query):
-    result = vectorstore.similarity_search(query, k=7)
+    result = vectorstore.similarity_search(query, k=10)
     return str(result)
 
 client = openai.OpenAI()
