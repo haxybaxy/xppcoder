@@ -1,84 +1,74 @@
-from langchain.document_loaders import DirectoryLoader
-from langchain.text_splitter import CharacterTextSplitter
-import os
-import pinecone
-from langchain.vectorstores import Pinecone
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
+from langchain.chains import ConversationChain
+from langchain.chains.conversation.memory import ConversationBufferWindowMemory
+from langchain.prompts import (
+    SystemMessagePromptTemplate,
+    HumanMessagePromptTemplate,
+    ChatPromptTemplate,
+    MessagesPlaceholder
+)
 import streamlit as st
+from streamlit_chat import message
+from utils import *
 from dotenv import load_dotenv
-
 load_dotenv()
 
-
-PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
-PINECONE_ENV = os.getenv('PINECONE_ENV')
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-
-os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
+os.environ["OPENAI_API_KEY"] = os.getenv('OPENAI_API_KEY')
+os.environ["PINECONE_API_KEY"] = os.getenv('PINECONE_API_KEY')
 
 
-def doc_preprocessing():
-    loader = DirectoryLoader(
-        'data/',
-        glob='**/*.pdf',     # only the PDFs
-        show_progress=True
-    )
-    docs = loader.load()
-    text_splitter = CharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=0
-    )
-    docs_split = text_splitter.split_documents(docs)
-    return docs_split
+st.subheader("Chatbot with Langchain, ChatGPT, Pinecone, and Streamlit")
 
-@st.cache_resource
-def embedding_db():
-    # we use the openAI embedding model
-    embeddings = OpenAIEmbeddings()
-    pinecone.init(
-        api_key=PINECONE_API_KEY,
-        environment=PINECONE_ENV
-    )
-    docs_split = doc_preprocessing()
-    doc_db = Pinecone.from_documents(
-        docs_split,
-        embeddings,
-        index_name='langchain-demo-indexes'
-    )
-    return doc_db
+if 'responses' not in st.session_state:
+    st.session_state['responses'] = ["How can I assist you?"]
 
-llm = ChatOpenAI()
-doc_db = embedding_db()
+if 'requests' not in st.session_state:
+    st.session_state['requests'] = []
 
-def retrieval_answer(query):
-    qa = RetrievalQA.from_chain_type(
-    llm=llm,
-    chain_type='stuff',
-    retriever=doc_db.as_retriever(),
-    )
-    query = query
-    result = qa.run(query)
-    return result
+llm = ChatOpenAI(model_name="gpt-3.5-turbo", openai_api_key=os.environ["OPENAI_API_KEY"])
 
-def main():
-    st.title("Question and Answering App powered by LLM and Pinecone")
+if 'buffer_memory' not in st.session_state:
+            st.session_state.buffer_memory=ConversationBufferWindowMemory(k=3,return_messages=True)
 
-    text_input = st.text_input("Ask your query...")
-    if st.button("Ask Query"):
-        if len(text_input)>0:
-            st.info("Your Query: " + text_input)
-            answer = retrieval_answer(text_input)
-            st.success(answer)
 
-if __name__ == "__main__":
-    main()
+system_msg_template = SystemMessagePromptTemplate.from_template(template="""Answer the question as truthfully as possible using the provided context,
+and if the answer is not contained within the text below, say 'I don't know'""")
+
+
+human_msg_template = HumanMessagePromptTemplate.from_template(template="{input}")
+
+prompt_template = ChatPromptTemplate.from_messages([system_msg_template, MessagesPlaceholder(variable_name="history"), human_msg_template])
+
+conversation = ConversationChain(memory=st.session_state.buffer_memory, prompt=prompt_template, llm=llm, verbose=True)
 
 
 
 
+# container for chat history
+response_container = st.container()
+# container for text box
+textcontainer = st.container()
 
 
+with textcontainer:
+    query = st.text_input("Query: ", key="input")
+    if query:
+        with st.spinner("typing..."):
+            conversation_string = get_conversation_string()
+            # st.code(conversation_string)
+            refined_query = query_refiner(conversation_string, query)
+            st.subheader("Refined Query:")
+            st.write(refined_query)
+            context = find_match(refined_query)
+            # print(context)
+            response = conversation.predict(input=f"Context:\n {context} \n\n Query:\n{query}")
+        st.session_state.requests.append(query)
+        st.session_state.responses.append(response)
+with response_container:
+    if st.session_state['responses']:
 
+        for i in range(len(st.session_state['responses'])):
+            message(st.session_state['responses'][i],key=str(i))
+            if i < len(st.session_state['requests']):
+                message(st.session_state["requests"][i], is_user=True,key=str(i)+ '_user')
 
