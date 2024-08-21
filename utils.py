@@ -2,18 +2,15 @@ from langchain_openai import OpenAIEmbeddings
 import openai
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
-from dotenv import load_dotenv
-import os
 import streamlit as st
 
 # Load the environment variables from the .env file
-load_dotenv()
 def initialize_services(openai_api_key, pinecone_api_key):
     # Set OpenAI API key
     openai.api_key = openai_api_key
 
     # Initialize OpenAI Embeddings model
-    model = OpenAIEmbeddings(model="text-embedding-ada-002")
+    model = OpenAIEmbeddings(model="text-embedding-ada-002",openai_api_key=openai.api_key)
 
     # Initialize Pinecone with API key
     pc = Pinecone(api_key=pinecone_api_key)
@@ -23,7 +20,7 @@ def initialize_services(openai_api_key, pinecone_api_key):
     vectorstore = PineconeVectorStore(index, model, "text")
 
     # Initialize OpenAI client
-    client = openai.OpenAI()
+    client = openai.OpenAI(api_key=openai.api_key)
 
     return vectorstore, client
 
