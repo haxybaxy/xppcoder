@@ -141,7 +141,7 @@ pydantic>=2.7,<3.0
     #   langchain-core
     #   langsmith
     #   openai
-pydantic-core==2.16.3
+pydantic-core>=2.16.3,<2.21.0
     # via pydantic
 pydeck==0.8.1b0
     # via streamlit
