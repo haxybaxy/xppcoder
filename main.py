@@ -42,8 +42,8 @@ if openai_api_key and pinecone_api_key:
     if 'buffer_memory' not in st.session_state:
         st.session_state.buffer_memory = ConversationBufferWindowMemory(k=3, return_messages=True)
 
-    system_msg_template = SystemMessagePromptTemplate.from_template(template="""Answer the question as truthfully as possible using the provided context,
-    and if the answer is not contained within the text below, say 'I don't know'""")
+    system_msg_template = SystemMessagePromptTemplate.from_template(template="""You are an assistant for Dynamics 365 Finance and Operations. Answer the question as truthfully as possible using the provided context,
+    and if the answer is not contained within the text below, say 'I don't have information regarding this'. If the user asks to do something with code consult the text below and write a code snippet that would solve the user's problem in X++. Make sure the code is written in the new Dynamics 365 Finance and Operations standard and DO NOT USE code from Dynamics AX2012.""")
 
     human_msg_template = HumanMessagePromptTemplate.from_template(template="{input}")
 
@@ -70,8 +70,8 @@ if openai_api_key and pinecone_api_key:
     with response_container:
         if st.session_state['responses']:
             for i in range(len(st.session_state['responses'])):
-                message(st.session_state['responses'][i], key=str(i))
+                st.write(st.session_state['responses'][i])  # Replace message with st.write
                 if i < len(st.session_state['requests']):
-                    message(st.session_state["requests"][i], is_user=True, key=str(i) + '_user')
+                    st.write(st.session_state["requests"][i])
 else:
     st.warning("Please enter your OpenAI and Pinecone API keys to start the conversation.")
