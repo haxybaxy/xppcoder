@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit_authenticator as stauth
 from streamlit_chat import message
 from utils import initialize_services, find_match, query_refiner, get_conversation_string
 from langchain_openai import ChatOpenAI
@@ -14,112 +13,89 @@ from langchain.prompts import (
 
 st.subheader("X++ Coding Assistant")
 
-# Hashing passwords
-hashed_passwords = stauth.Hasher(['123', '456']).generate()
+# Load API keys from the URL query parameters (i.e., cookies)
+query_params = st.experimental_get_query_params()
+if "openai_api_key" in query_params:
+    st.session_state["openai_api_key"] = query_params["openai_api_key"][0]
+if "pinecone_api_key" in query_params:
+    st.session_state["pinecone_api_key"] = query_params["pinecone_api_key"][0]
 
-# User authentication configuration
-users = {
-    "usernames": {
-        "john": {
-            "name": "John Doe",
-            "password": hashed_passwords[0]
-        },
-        "jane": {
-            "name": "Jane Doe",
-            "password": hashed_passwords[1]
-        }
-    }
-}
+# Check if API keys are already saved in session state
+if "openai_api_key" not in st.session_state or "pinecone_api_key" not in st.session_state:
+    openai_api_key = st.text_input("Enter your OpenAI API key:", type="password")
+    pinecone_api_key = st.text_input("Enter your Pinecone API key:", type="password")
 
-authenticator = stauth.Authenticate(
-    users,
-    "some_cookie_name",
-    "some_signature_key",
-    cookie_expiry_days=30
-)
+    if st.button("Save API Keys"):
+        st.session_state["openai_api_key"] = openai_api_key
+        st.session_state["pinecone_api_key"] = pinecone_api_key
 
-name, authentication_status, username = authenticator.login("main")
-
-if authentication_status:
-    st.write(f"Welcome *{name}*")
-    authenticator.logout("Logout", "sidebar")
-
-    # Check if API keys are already saved
-    if "openai_api_key" not in st.session_state or "pinecone_api_key" not in st.session_state:
-        openai_api_key = st.text_input("Enter your OpenAI API key:", type="password")
-        pinecone_api_key = st.text_input("Enter your Pinecone API key:", type="password")
-
-        if st.button("Save API Keys"):
-            st.session_state["openai_api_key"] = openai_api_key
-            st.session_state["pinecone_api_key"] = pinecone_api_key
-            st.success("API keys saved!")
-
-    else:
-        st.write("API keys already saved.")
-
-    # Use the saved API keys
-    if "openai_api_key" in st.session_state and "pinecone_api_key" in st.session_state:
-        vectorstore, client = initialize_services(
-            st.session_state["openai_api_key"],
-            st.session_state["pinecone_api_key"]
+        # Save the API keys in cookies by setting them in the query parameters
+        st.experimental_set_query_params(
+            openai_api_key=openai_api_key,
+            pinecone_api_key=pinecone_api_key
         )
+        st.success("API keys saved!")
 
-        # Dropdown for selecting the chat LLM model with a default value of "gpt-3.5-turbo"
-        model_name = st.selectbox(
-            "Choose the chat model for the LLM:",
-            ["gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4o-mini"],
-            index=0  # Setting "gpt-3.5-turbo" as the default option
-        )
+else:
+    st.write("API keys already saved.")
 
-        # Initialize services with the provided OpenAI and Pinecone API keys
-        vectorstore, client = initialize_services(st.session_state["openai_api_key"], st.session_state["pinecone_api_key"])
+# Use the saved API keys
+if "openai_api_key" in st.session_state and "pinecone_api_key" in st.session_state:
+    vectorstore, client = initialize_services(
+        st.session_state["openai_api_key"],
+        st.session_state["pinecone_api_key"]
+    )
 
-        # Use the selected model from the dropdown
-        llm = ChatOpenAI(model_name=model_name, openai_api_key=st.session_state["openai_api_key"])
+    # Dropdown for selecting the chat LLM model with a default value of "gpt-3.5-turbo"
+    model_name = st.selectbox(
+        "Choose the chat model for the LLM:",
+        ["gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4o-mini"],
+        index=0  # Setting "gpt-3.5-turbo" as the default option
+    )
 
-        if 'responses' not in st.session_state:
-             st.session_state['responses'] = ["How can I assist you?"]
+    # Initialize services with the provided OpenAI and Pinecone API keys
+    vectorstore, client = initialize_services(st.session_state["openai_api_key"], st.session_state["pinecone_api_key"])
 
-        if 'requests' not in st.session_state:
-            st.session_state['requests'] = []
+    # Use the selected model from the dropdown
+    llm = ChatOpenAI(model_name=model_name, openai_api_key=st.session_state["openai_api_key"])
 
-        if 'buffer_memory' not in st.session_state:
-            st.session_state.buffer_memory = ConversationBufferWindowMemory(k=3, return_messages=True)
+    if 'responses' not in st.session_state:
+         st.session_state['responses'] = ["How can I assist you?"]
 
-        system_msg_template = SystemMessagePromptTemplate.from_template(template="""Answer the question as truthfully as possible using the provided context,
-        and if the answer is not contained within the text below, say 'I don't know'""")
+    if 'requests' not in st.session_state:
+        st.session_state['requests'] = []
 
-        human_msg_template = HumanMessagePromptTemplate.from_template(template="{input}")
+    if 'buffer_memory' not in st.session_state:
+        st.session_state.buffer_memory = ConversationBufferWindowMemory(k=3, return_messages=True)
 
-        prompt_template = ChatPromptTemplate.from_messages([system_msg_template, MessagesPlaceholder(variable_name="history"), human_msg_template])
+    system_msg_template = SystemMessagePromptTemplate.from_template(template="""Answer the question as truthfully as possible using the provided context,
+    and if the answer is not contained within the text below, say 'I don't know'""")
 
-        conversation = ConversationChain(memory=st.session_state.buffer_memory, prompt=prompt_template, llm=llm, verbose=True)
+    human_msg_template = HumanMessagePromptTemplate.from_template(template="{input}")
 
-        response_container = st.container()
-        textcontainer = st.container()
+    prompt_template = ChatPromptTemplate.from_messages([system_msg_template, MessagesPlaceholder(variable_name="history"), human_msg_template])
 
-        with textcontainer:
-            query = st.text_input("Query: ", key="input")
-            if query:
-                with st.spinner("typing..."):
-                    conversation_string = get_conversation_string()
-                    refined_query = query_refiner(client, conversation_string, query)
-                    st.subheader("Refined Query:")
-                    st.write(refined_query)
-                    context = find_match(vectorstore, refined_query)
-                    response = conversation.predict(input=f"Context:\n {context} \n\n Query:\n{query}")
-                st.session_state.requests.append(query)
-                st.session_state.responses.append(response)
+    conversation = ConversationChain(memory=st.session_state.buffer_memory, prompt=prompt_template, llm=llm, verbose=True)
 
-        with response_container:
-            if st.session_state['responses']:
-                for i in range(len(st.session_state['responses'])):
-                    message(st.session_state['responses'][i], key=str(i))
-                    if i < len(st.session_state['requests']):
-                        message(st.session_state["requests"][i], is_user=True, key=str(i) + '_user')
+    response_container = st.container()
+    textcontainer = st.container()
 
-elif authentication_status == False:
-    st.error("Username/password is incorrect")
+    with textcontainer:
+        query = st.text_input("Query: ", key="input")
+        if query:
+            with st.spinner("typing..."):
+                conversation_string = get_conversation_string()
+                refined_query = query_refiner(client, conversation_string, query)
+                st.subheader("Refined Query:")
+                st.write(refined_query)
+                context = find_match(vectorstore, refined_query)
+                response = conversation.predict(input=f"Context:\n {context} \n\n Query:\n{query}")
+            st.session_state.requests.append(query)
+            st.session_state.responses.append(response)
 
-elif authentication_status == None:
-    st.warning("Please enter your username and password")
+    with response_container:
+        if st.session_state['responses']:
+            for i in range(len(st.session_state['responses'])):
+                message(st.session_state['responses'][i], key=str(i))
+                if i < len(st.session_state['requests']):
+                    message(st.session_state["requests"][i], is_user=True, key=str(i) + '_user')
