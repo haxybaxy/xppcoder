@@ -16,11 +16,17 @@ st.subheader("X++ Coding Assistant")
 # Ask for OpenAI API key
 openai_api_key = st.text_input("Enter your OpenAI API key:", type="password")
 
+model_name = st.selectbox(
+    "Choose the ChatGPT model:",
+    ["gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o-mini","gpt-4o"],
+    index=0  # Setting "gpt-3.5-turbo" as the default option
+)
+
 if openai_api_key:
     # Initialize services with the provided OpenAI API key
     vectorstore, client = initialize_services(openai_api_key)
 
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", openai_api_key=openai_api_key)
+    llm = ChatOpenAI(model_name=model_name, openai_api_key=openai_api_key)
 
     if 'responses' not in st.session_state:
         st.session_state['responses'] = ["How can I assist you?"]
