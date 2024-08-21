@@ -1,4 +1,5 @@
 streamlit
+langchain
 streamlit-chat
 langchain-openai
 langchain-pinecone
