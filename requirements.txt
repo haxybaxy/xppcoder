@@ -221,3 +221,4 @@ urllib3==2.2.1
     #   requests
 yarl==1.9.4
     # via aiohttp
+langchain
