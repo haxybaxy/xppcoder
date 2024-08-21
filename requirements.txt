@@ -136,7 +136,7 @@ protobuf==4.25.3
     # via streamlit
 pyarrow==15.0.2
     # via streamlit
-pydantic==2.6.4
+pydantic>=2.7,<3.0
     # via
     #   langchain-core
     #   langsmith
