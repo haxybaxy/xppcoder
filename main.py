@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_chat import message
 from utils import initialize_services, find_match, query_refiner, get_conversation_string
 from langchain_openai import ChatOpenAI
@@ -11,40 +12,37 @@ from langchain.prompts import (
     MessagesPlaceholder
 )
 
+# Access the encryption password from Streamlit secrets
+cookies = EncryptedCookieManager(
+    prefix="my_app",  # optional
+    password=st.secrets["cookies"]["encryption_password"]
+)
+
+# Stop the script if cookies are not ready
+if not cookies.ready():
+    st.stop()
+
 st.subheader("X++ Coding Assistant")
 
-# Load API keys from the URL query parameters (i.e., cookies)
-query_params = st.experimental_get_query_params()
-if "openai_api_key" in query_params:
-    st.session_state["openai_api_key"] = query_params["openai_api_key"][0]
-if "pinecone_api_key" in query_params:
-    st.session_state["pinecone_api_key"] = query_params["pinecone_api_key"][0]
+# Retrieve API keys from cookies
+openai_api_key = cookies.get("openai_api_key")
+pinecone_api_key = cookies.get("pinecone_api_key")
 
-# Check if API keys are already saved in session state
-if "openai_api_key" not in st.session_state or "pinecone_api_key" not in st.session_state:
+if openai_api_key is None or pinecone_api_key is None:
     openai_api_key = st.text_input("Enter your OpenAI API key:", type="password")
     pinecone_api_key = st.text_input("Enter your Pinecone API key:", type="password")
 
     if st.button("Save API Keys"):
-        st.session_state["openai_api_key"] = openai_api_key
-        st.session_state["pinecone_api_key"] = pinecone_api_key
-
-        # Save the API keys in cookies by setting them in the query parameters
-        st.experimental_set_query_params(
-            openai_api_key=openai_api_key,
-            pinecone_api_key=pinecone_api_key
-        )
+        cookies["openai_api_key"] = openai_api_key
+        cookies["pinecone_api_key"] = pinecone_api_key
+        cookies.save()  # Don't forget to save after setting cookies!
         st.success("API keys saved!")
-
 else:
     st.write("API keys already saved.")
 
-# Use the saved API keys
-if "openai_api_key" in st.session_state and "pinecone_api_key" in st.session_state:
-    vectorstore, client = initialize_services(
-        st.session_state["openai_api_key"],
-        st.session_state["pinecone_api_key"]
-    )
+# Use the saved API keys if available
+if openai_api_key and pinecone_api_key:
+    vectorstore, client = initialize_services(openai_api_key, pinecone_api_key)
 
     # Dropdown for selecting the chat LLM model with a default value of "gpt-3.5-turbo"
     model_name = st.selectbox(
@@ -54,10 +52,10 @@ if "openai_api_key" in st.session_state and "pinecone_api_key" in st.session_sta
     )
 
     # Initialize services with the provided OpenAI and Pinecone API keys
-    vectorstore, client = initialize_services(st.session_state["openai_api_key"], st.session_state["pinecone_api_key"])
+    vectorstore, client = initialize_services(openai_api_key, pinecone_api_key)
 
     # Use the selected model from the dropdown
-    llm = ChatOpenAI(model_name=model_name, openai_api_key=st.session_state["openai_api_key"])
+    llm = ChatOpenAI(model_name=model_name, openai_api_key=openai_api_key)
 
     if 'responses' not in st.session_state:
          st.session_state['responses'] = ["How can I assist you?"]
