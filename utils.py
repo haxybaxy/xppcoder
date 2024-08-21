@@ -8,16 +8,12 @@ import streamlit as st
 
 # Load the environment variables from the .env file
 load_dotenv()
-
-def initialize_services(openai_api_key):
+def initialize_services(openai_api_key, pinecone_api_key):
     # Set OpenAI API key
     openai.api_key = openai_api_key
 
     # Initialize OpenAI Embeddings model
     model = OpenAIEmbeddings(model="text-embedding-ada-002")
-
-    # Get Pinecone API key from the environment
-    pinecone_api_key = os.getenv('PINECONE_API_KEY')
 
     # Initialize Pinecone with API key
     pc = Pinecone(api_key=pinecone_api_key)
