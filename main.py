@@ -14,7 +14,7 @@ from langchain.prompts import (
 st.subheader("X++ Coding Assistant")
 
 # Load API keys from the URL query parameters (i.e., cookies)
-query_params = st.experimental_get_query_params()
+query_params = st.query_params
 if "openai_api_key" in query_params:
     st.session_state["openai_api_key"] = query_params["openai_api_key"][0]
 if "pinecone_api_key" in query_params:
