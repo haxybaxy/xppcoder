@@ -13,28 +13,51 @@ from langchain.prompts import (
 
 st.subheader("X++ Coding Assistant")
 
-# Ask for OpenAI API key
-openai_api_key = st.text_input("Enter your OpenAI API key:", type="password")
+# Load API keys from the URL query parameters (i.e., cookies)
+if "openai_api_key" in st.query_params:
+    st.session_state["openai_api_key"] = st.query_params["openai_api_key"]
+if "pinecone_api_key" in st.query_params:
+    st.session_state["pinecone_api_key"] = st.query_params["pinecone_api_key"]
 
-# Ask for Pinecone API key
-pinecone_api_key = st.text_input("Enter your Pinecone API key:", type="password")
+# Check if API keys are already saved in session state
+if "openai_api_key" not in st.session_state or "pinecone_api_key" not in st.session_state:
+    openai_api_key = st.text_input("Enter your OpenAI API key:", type="password")
+    pinecone_api_key = st.text_input("Enter your Pinecone API key:", type="password")
 
-# Dropdown for selecting the chat LLM model with a default value of "gpt-3.5-turbo"
-model_name = st.selectbox(
-    "Choose the chat model for the LLM:",
-    ["gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4o-mini"],
-    index=0  # Setting "gpt-3.5-turbo" as the default option
-)
+    if st.button("Save API Keys"):
+        st.session_state["openai_api_key"] = openai_api_key
+        st.session_state["pinecone_api_key"] = pinecone_api_key
 
-if openai_api_key and pinecone_api_key:
+        # Save the API keys in query parameters using a dictionary
+        st.query_params["openai_api_key"] = openai_api_key
+        st.query_params["pinecone_api_key"] = pinecone_api_key
+        st.success("API keys saved!")
+
+else:
+    st.write("API keys already saved.")
+
+# Use the saved API keys
+if "openai_api_key" in st.session_state and "pinecone_api_key" in st.session_state:
+    vectorstore, client = initialize_services(
+        st.session_state["openai_api_key"],
+        st.session_state["pinecone_api_key"]
+    )
+
+    # Dropdown for selecting the chat LLM model with a default value of "gpt-3.5-turbo"
+    model_name = st.selectbox(
+        "Choose the chat model for the LLM:",
+        ["gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4o-mini"],
+        index=0  # Setting "gpt-3.5-turbo" as the default option
+    )
+
     # Initialize services with the provided OpenAI and Pinecone API keys
-    vectorstore, client = initialize_services(openai_api_key, pinecone_api_key)
+    vectorstore, client = initialize_services(st.session_state["openai_api_key"], st.session_state["pinecone_api_key"])
 
     # Use the selected model from the dropdown
-    llm = ChatOpenAI(model_name=model_name, openai_api_key=openai_api_key)
+    llm = ChatOpenAI(model_name=model_name, openai_api_key=st.session_state["openai_api_key"])
 
     if 'responses' not in st.session_state:
-        st.session_state['responses'] = ["How can I assist you?"]
+         st.session_state['responses'] = ["How can I assist you?"]
 
     if 'requests' not in st.session_state:
         st.session_state['requests'] = []
@@ -74,4 +97,4 @@ if openai_api_key and pinecone_api_key:
                 if i < len(st.session_state['requests']):
                     st.write(st.session_state["requests"][i])
 else:
-    st.warning("Please enter your OpenAI and Pinecone API keys to start the conversation.")
+    st.write("Please enter your API keys to continue.")
